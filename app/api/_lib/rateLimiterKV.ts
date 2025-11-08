@@ -18,11 +18,13 @@ function initKV() {
   
   try {
     // Check for Vercel KV environment variables
-    // Vercel uses KV_URL or KV_REST_API_URL + KV_REST_API_TOKEN
-    const hasKvUrl = process.env.KV_URL;
-    const hasKvRest = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+    // Vercel KV provides: KV_URL, KV_REST_API_URL, KV_REST_API_TOKEN, or just REDIS_URL
+    const hasAnyKvEnv = 
+      process.env.KV_URL || 
+      process.env.REDIS_URL ||
+      (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
     
-    if (hasKvUrl || hasKvRest) {
+    if (hasAnyKvEnv) {
       const vercelKv = require("@vercel/kv");
       kv = vercelKv.kv;
       console.log("[Rate Limiter] Using Vercel KV for rate limiting");
