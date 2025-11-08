@@ -1,5 +1,6 @@
 // Lazy import to avoid build-time errors when KV env vars aren't set
 let kv: any = null;
+let kvInitialized = false;
 
 const MAX_PER_MINUTE = 20;
 const MAX_PER_MONTH = 500;
@@ -12,17 +13,26 @@ let fallbackMonthKey = "";
 let fallbackMonthCount = 0;
 
 function initKV() {
-  if (kv) return kv;
+  if (kvInitialized) return kv;
+  kvInitialized = true;
+  
   try {
-    // Only import if env vars are present
-    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-      const { kv: kvClient } = require("@vercel/kv");
-      kv = kvClient;
+    // Check for Vercel KV environment variables
+    // Vercel uses KV_URL or KV_REST_API_URL + KV_REST_API_TOKEN
+    const hasKvUrl = process.env.KV_URL;
+    const hasKvRest = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+    
+    if (hasKvUrl || hasKvRest) {
+      const vercelKv = require("@vercel/kv");
+      kv = vercelKv.kv;
+      console.log("[Rate Limiter] Using Vercel KV for rate limiting");
       return kv;
     }
   } catch (e) {
-    // KV not available
+    console.warn("[Rate Limiter] KV not available, using in-memory fallback:", e);
   }
+  
+  console.log("[Rate Limiter] Using in-memory fallback (not recommended for production)");
   return null;
 }
 
