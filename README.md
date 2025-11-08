@@ -11,43 +11,111 @@ This is a small Next.js App Router project that surfaces key Token Metrics indic
 - In-memory rate limiter guarantees at most 20 requests per minute and 500 requests per month across all routes. The UI only surfaces quota badges once a limit has been exhausted.
 - Tailwind CSS styling with a dark control-room aesthetic.
 
-## Getting Started
+## Environment Setup
 
-1. **Install dependencies**
+### Prerequisites
+- Node.js 18+ and npm
+- RapidAPI Token Metrics API subscription ([sign up here](https://rapidapi.com/token-metrics-token-metrics-default/api/token-metrics-api1))
+
+### Installation Steps
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/NamNhiBinhHipHop/indices-viewer.git
+   cd indices-viewer
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. **Configure environment variables**
-   Create a `.env.local` file in the project root and set your RapidAPI credentials:
+3. **Configure environment variables**
+   Create a `.env.local` file in the project root with your RapidAPI credentials:
    ```bash
    RAPIDAPI_HOST=token-metrics-api1.p.rapidapi.com
-   RAPIDAPI_KEY=your_rapidapi_key
+   RAPIDAPI_KEY=your_actual_rapidapi_key_here
    ```
+   
+   **Important:** Never commit `.env.local` to version control. It's already included in `.gitignore`.
 
-3. **Run the development server**
+4. **Run the development server**
    ```bash
    npm run dev
    ```
-   The app will be available at `http://localhost:3000`. The landing page redirects to `/dashboard` where the client component renders the dashboard UI.
+   Open [http://localhost:3000](http://localhost:3000) in your browser. The app automatically redirects to `/dashboard`.
 
-4. **Build or lint**
+5. **Build for production**
    ```bash
-   npm run build   # compile for production
-   npm run start   # run the production build
-   npm run lint    # run Next.js ESLint rules
+   npm run build   # compile optimized production build
+   npm run start   # run the production server
+   npm run lint    # verify code quality with ESLint
    ```
 
-## Data Flow & Rate Limiting
+## Caching Strategy
 
-- The `useIndices` hook (client side) polls `/api/indices` every 60 seconds unless the tab is hidden. Manual refreshes reuse the same endpoint.
-- `/api/indices` fetches `https://token-metrics-api1.p.rapidapi.com/v3/indices`, caches the JSON response in memory for 60 seconds, and returns rate-limit headers reflecting remaining minute/month usage.
-- `/api/indices-performance` forwards to `https://token-metrics-api1.p.rapidapi.com/v3/indices-performance` (limit=50, page=1 by default), also cached for 60 seconds per id.
-- Both handlers share an in-memory rate limiter (`app/api/_lib/rateLimiter.ts`) that:
-  - allows at most 20 calls per rolling minute,
-  - allows at most 500 calls per calendar month,
-  - returns `429` with `Retry-After` when either cap is exceeded.
-- The React hooks parse response headers and only display quota information if you actually exhaust the limit, keeping the interface clean during normal usage.
+The application implements a multi-layered caching approach to minimize API usage while maintaining data freshness:
+
+### Cache Architecture
+
+**Hot Cache Layer (60-second TTL)**
+- Both `/api/indices` and `/api/indices-performance` maintain in-memory caches with 60-second expiration
+- Cache hits bypass rate limiting and external API calls entirely
+- Each cached response includes a timestamp to determine freshness
+
+**Cache Flow:**
+1. Request arrives → Check rate limiter first
+2. If rate limit exceeded → Return 429 immediately
+3. If rate limit OK → Check if cache exists and is fresh (< 60s old)
+4. Cache hit → Return cached data with rate-limit headers (no external call)
+5. Cache miss/stale → Call RapidAPI, update cache, return fresh data
+
+**Per-Index Caching:**
+- Performance data is cached separately per index ID
+- Cache key format: `id:${id}:limit:${limit}:page:${page}`
+- Prevents redundant fetches when users explore different indices
+
+### Rate Limiting
+
+Both API routes share a centralized rate limiter (`app/api/_lib/rateLimiter.ts`):
+
+**Minute Window (Rolling)**
+- Max: 20 requests per 60-second window
+- Resets: Every 60 seconds from first request
+- Headers: `x-ratelimit-limit-minute`, `x-ratelimit-remaining-minute`, `x-ratelimit-reset-minute`
+
+**Monthly Quota (Calendar)**
+- Max: 500 requests per calendar month
+- Resets: First day of next month at 00:00 UTC
+- Headers: `x-ratelimit-limit-month`, `x-ratelimit-remaining-month`, `x-ratelimit-reset-month`
+
+**Response Behavior:**
+- All responses include rate-limit headers for client visibility
+- 429 responses include `Retry-After` header (seconds until minute window resets)
+- Error messages explain which limit was exceeded and when it resets
+
+### Client-Side Polling
+
+**Main Dashboard (`useIndices` hook):**
+- Automatic refresh: every 60 seconds
+- Pauses when browser tab is hidden (reduces unnecessary calls)
+- Manual refresh: "Refresh now" button triggers immediate fetch
+- Cache on server means rapid clicks won't exhaust quota
+
+**Detail Panel (`usePerformance` hook):**
+- Fetches only when an index is selected
+- Auto-refreshes every 60 seconds while panel is open
+- Stops polling when panel closes or tab hidden
+
+### Why This Strategy Works
+
+With 60-second caching and 60-second polling intervals:
+- **Worst case (auto-polling only):** 1 call/min × 60 min = 60 calls/hour = ~1,440 calls/day
+- **With cache:** Most requests hit cache, actual RapidAPI calls ≈ 1/min = ~1,440/day or 43,200/month
+- **Plan limits:** 20 req/min allows bursts; 500/month limit enforced server-side
+- **Grace period:** 60s cache means even 20 rapid "Refresh now" clicks consume only 1 external call
+
+This conservative approach ensures you stay well within RapidAPI plan limits while maintaining responsive data updates.
 
 ## Project Structure
 
@@ -71,11 +139,116 @@ app/
 
 Tailwind configuration lives in `tailwind.config.ts`, with global styles in `app/globals.css`.
 
+## Tech Stack
+
+### Frontend
+- **Next.js 14** (App Router) - React framework with server-side rendering
+- **React 18** - Component library with hooks
+- **TypeScript** - Type-safe development
+- **Tailwind CSS 3** - Utility-first styling with custom dark theme
+
+### Backend
+- **Next.js API Route Handlers** - Serverless API endpoints
+- **In-Memory Caching** - Volatile cache with TTL management
+- **Custom Rate Limiter** - Minute/month quota enforcement
+
+### Data Visualization
+- **Native SVG** - No external chart libraries
+- **Custom Sparklines** - Inline trend indicators
+- **Gradient Line Charts** - 30-day performance visualization
+
+### External APIs
+- **RapidAPI Token Metrics API** - `/v3/indices` and `/v3/indices-performance` endpoints
+
+## System Design
+
+### Architecture Overview
+
+```
+┌─────────────┐         ┌──────────────────┐         ┌─────────────┐
+│   Browser   │────────▶│   Next.js App    │────────▶│  RapidAPI   │
+│   (Client)  │◀────────│  (Server Routes) │◀────────│   (Token    │
+└─────────────┘         └──────────────────┘         │  Metrics)   │
+                                │                     └─────────────┘
+                                │
+                        ┌───────▼────────┐
+                        │  Rate Limiter  │
+                        │  (20/min,      │
+                        │   500/month)   │
+                        └────────────────┘
+                                │
+                        ┌───────▼────────┐
+                        │  Cache Layer   │
+                        │  (60s TTL)     │
+                        └────────────────┘
+```
+
+### Request Flow
+
+**1. Client → Server (Every 60s or manual refresh)**
+```
+useIndices hook → fetch("/api/indices")
+usePerformance hook → fetch("/api/indices-performance?id=...")
+```
+
+**2. Server Processing (`/api/indices` example)**
+```
+a) consumeRateLimit() → Check minute/month quotas
+   ├─ If exceeded → Return 429 with Retry-After header
+   └─ If OK → Increment counters
+
+b) Check cache freshness (now - cacheTimestamp < 60_000ms)
+   ├─ If fresh → Return cached data + rate-limit headers
+   └─ If stale/missing → Proceed to step c
+
+c) Fetch from RapidAPI
+   ├─ Add x-rapidapi-host and x-rapidapi-key headers
+   └─ Store response in cache with current timestamp
+
+d) Return JSON + rate-limit headers to client
+```
+
+**3. Client Processing**
+```
+Parse response → Extract rate-limit headers → Update UI state
+If 429 → Display error banner with quota details
+If 200 → Render data, hide quota info
+```
+
+### Key Design Decisions
+
+**Why Server-Side Proxy?**
+- Keeps API keys secure (never exposed to browser)
+- Centralizes rate limiting across all users
+- Enables caching to reduce external API calls
+- Provides consistent error handling
+
+**Why 60-Second Cache?**
+- Balances data freshness with API conservation
+- Allows 20+ manual refreshes without hitting quota
+- Auto-polling at 60s means 1 external call/min max
+- Simple in-memory cache (no Redis needed for demo)
+
+**Why Rolling Minute + Calendar Month?**
+- Minute window prevents burst abuse (20 req/min)
+- Monthly quota prevents runaway costs (500 calls/month)
+- Both tracked server-side, not client-side
+
+**Why Hide Rate Limits Until Exhausted?**
+- Cleaner UI during normal usage
+- Only shows warnings when action is needed
+- Error banner includes reset countdown for transparency
+
+## Deployment Considerations
+
+- **In-memory cache limitation:** Serverless platforms (Vercel, Netlify) spin down instances, losing cache. For production, consider Redis/Upstash for persistent caching.
+- **Rate limiter state:** Current implementation uses module-level variables. Multi-instance deployments need shared state (Redis, DynamoDB, etc.).
+- **Environment variables:** Ensure `RAPIDAPI_HOST` and `RAPIDAPI_KEY` are configured in your deployment platform's secrets/environment settings.
+
 ## Notes & Considerations
 
 - The dashboard filters out indices that contain only zeros so the list remains meaningful.
 - Components rely solely on built-in SVG chart primitives—no third-party charting libraries.
-- The project uses persistent in-memory caches and rate counters; if you deploy to a serverless environment you may want to replace these with a shared store (Redis, Upstash, etc.).
 - The sample styles assume a dark theme. Adjust Tailwind tokens (`tailwind.config.ts`) if you need a different brand palette.
 
 ## Troubleshooting
