@@ -4,7 +4,7 @@ let kvInitialized = false;
 
 const MAX_PER_MINUTE = 20;
 const MAX_PER_MONTH = 500;
-const MINUTE_WINDOW_MS = 60_000;
+const MINUTE_WINDOW_MS = 60_000; // 60 seconds
 
 // Fallback in-memory counters for local dev or when KV isn't configured
 let fallbackMinuteStart = 0;
