@@ -256,4 +256,4 @@ If 200 → Render data, hide quota info
 - **Seeing a 429 banner?** You have either refreshed more than 20 times within a minute or crossed the 500 calls/month quota. Wait for the reset time shown in the banner or increase the server-side cache/limits as needed.
 - **RapidAPI errors** surface as plain messages in the UI. Double-check that `RAPIDAPI_HOST` and `RAPIDAPI_KEY` are defined and that your subscription covers the queried endpoints.
 
-Happy hacking! 🚀
+Binh Trong Ho
