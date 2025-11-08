@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { consumeRateLimit } from "../_lib/rateLimiterKV";
+import { consumeRateLimit } from "../_lib/rateLimiter";
 
 const HOT_CACHE_TTL_MS = 60_000;
 
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
 
   const key = `id:${id}:limit:${limit}:page:${page}`;
   const cached = CACHE.get(key);
-  const quota = await consumeRateLimit();
+  const quota = consumeRateLimit();
   if (!quota.allowed) {
     const headers: Record<string, string> = { ...quota.headers };
     if (quota.retryAfterSeconds) {

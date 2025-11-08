@@ -24,11 +24,6 @@ This is a small Next.js App Router project that surfaces key Token Metrics indic
    RAPIDAPI_HOST=token-metrics-api1.p.rapidapi.com
    RAPIDAPI_KEY=your_rapidapi_key
    ```
-   
-   **For Vercel deployment:** The in-memory rate limiter won't work in serverless environments. Instead, set up Vercel KV:
-   - In your Vercel project dashboard, go to Storage → Create Database → KV
-   - Copy the environment variables (KV_REST_API_URL, KV_REST_API_TOKEN) to your project
-   - The code will automatically use the KV-based limiter when `@vercel/kv` is installed
 
 3. **Run the development server**
    ```bash
@@ -80,7 +75,7 @@ Tailwind configuration lives in `tailwind.config.ts`, with global styles in `app
 
 - The dashboard filters out indices that contain only zeros so the list remains meaningful.
 - Components rely solely on built-in SVG chart primitives—no third-party charting libraries.
-- **Rate limiting on Vercel:** The in-memory rate limiter doesn't persist across serverless function invocations. Use the KV-based version (`rateLimiterKV.ts`) by setting up Vercel KV storage and ensuring `@vercel/kv` is installed.
+- The project uses persistent in-memory caches and rate counters; if you deploy to a serverless environment you may want to replace these with a shared store (Redis, Upstash, etc.).
 - The sample styles assume a dark theme. Adjust Tailwind tokens (`tailwind.config.ts`) if you need a different brand palette.
 
 ## Troubleshooting

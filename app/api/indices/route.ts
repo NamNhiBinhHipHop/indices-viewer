@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { consumeRateLimit } from "../_lib/rateLimiterKV";
+import { consumeRateLimit } from "../_lib/rateLimiter";
 
 const HOT_CACHE_TTL_MS = 60_000;
 const API_URL = "https://token-metrics-api1.p.rapidapi.com/v3/indices";
@@ -8,7 +8,7 @@ const API_URL = "https://token-metrics-api1.p.rapidapi.com/v3/indices";
 const CACHE: { data: any; ts: number } = { data: null, ts: 0 };
 
 export async function GET() {
-  const quota = await consumeRateLimit();
+  const quota = consumeRateLimit();
   if (!quota.allowed) {
     const headers: Record<string, string> = { ...quota.headers };
     if (quota.retryAfterSeconds) {
