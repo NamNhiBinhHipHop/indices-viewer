@@ -71,8 +71,8 @@ export async function consumeRateLimit(): Promise<RateLimitResult> {
 
   // Get current counts
   const [minuteData, monthCount] = await Promise.all([
-    kvClient.get<{ count: number; windowStart: number }>(minuteKey),
-    kvClient.get<number>(monthKey),
+    kvClient.get(minuteKey) as Promise<{ count: number; windowStart: number } | null>,
+    kvClient.get(monthKey) as Promise<number | null>,
   ]);
 
   // Check/reset minute window
@@ -236,8 +236,8 @@ export async function rateLimitSnapshotHeaders() {
   const monthKey = `rate:month:${getMonthKey()}`;
 
   const [minuteData, monthCount] = await Promise.all([
-    kvClient.get<{ count: number; windowStart: number }>(minuteKey),
-    kvClient.get<number>(monthKey),
+    kvClient.get(minuteKey) as Promise<{ count: number; windowStart: number } | null>,
+    kvClient.get(monthKey) as Promise<number | null>,
   ]);
 
   const now = Date.now();
